@@ -540,58 +540,13 @@ bool Run(const char *path) {
                     // Refresh the width, height to reflect the framebuffer rather than the window.
                     glfwGetFramebufferSize(window, &width, &height);
 
-                    uint32_t fbo;
-                    glGenFramebuffers(1, &fbo);
-                    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+                    uint32_t fbo = 0;
+                    uint32_t renderTex = 0;
+                    uint32_t depthAttachment = 0;
 
-                    // Color attachment is a texture instead of a renderbuffer so that it can be sampler later.
-                    uint32_t renderTex;
-                    GL_CHECK(glGenTextures(1, &renderTex));
-                    GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
-                    GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL));
-                    GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR););
-                    GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-                    GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
+                    
 
-                    // uint32_t colorAttachment; // rgb: baseColor, a: ao?
-                    // uint32_t depthAttachment;
-                    // uint32_t normalAttachment;
-
-                    uint32_t depthAttachment;
-                    GL_CHECK(glGenTextures(1, &depthAttachment));
-                    GL_CHECK(glBindTexture(GL_TEXTURE_2D, depthAttachment));
-                    GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    // GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR););
-                    // GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-                    GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
-
-                    // A render buffer is a texture which does not support basic texture operations. So like an image 
-                    // with different usage flags? 
-                    // uint32_t rbo;
-                    // glGenRenderbuffers(1, &rbo);
-                    // glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-                    // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
-                    // glBindRenderbuffer(GL_RENDERBUFFER, 0);
-
-                    GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTex, 0); );
-                    GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthAttachment, 0););
-                    // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-                    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-                    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-                    // TODO: 
-                    //
-                    // The more complicated the rendering process gets the more I want some sort of indermediate representation, 
-                    // ie DrawCommand
-
-                    // NOTE: Blitting a framebuffer is actually rather slow supposedly, and drawing a quad is just a strictly better idea.
-                    // So I guess I'll just blit it for the sake of debugging for now?
-
+                    bool shouldResize = true;
                     double lastTime = glfwGetTime();
                     while (!glfwWindowShouldClose(window)) {
                         glfwPollEvents();
@@ -603,10 +558,49 @@ bool Run(const char *path) {
                         int newWidth, newHeight;
                         glfwGetFramebufferSize(window, &newWidth, &newHeight);
                         if (width != newWidth || height != newHeight) {
+                            shouldResize = true;
+                        }
+
+                        if (shouldResize) {
                             width = newWidth;
                             height = newHeight;
 
-                            // TODO: Resize attachemnts
+                            if (depthAttachment) {
+                                GL_CHECK(glDeleteTextures(1, &depthAttachment));
+                            }
+
+                            if (renderTex) {
+                                GL_CHECK(glDeleteTextures(1, &renderTex));
+                            }
+
+                            if (fbo) {
+                                GL_CHECK(glDeleteFramebuffers(1, &fbo));
+                            }
+
+                            glGenFramebuffers(1, &fbo);
+                            glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+                            GL_CHECK(glGenTextures(1, &renderTex));
+                            GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
+                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL));
+                            GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR););
+                            GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+                            GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
+
+                            GL_CHECK(glGenTextures(1, &depthAttachment));
+                            GL_CHECK(glBindTexture(GL_TEXTURE_2D, depthAttachment));
+                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
+                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                            GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
+
+                                                GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTex, 0); );
+                            GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthAttachment, 0););
+
+                            assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+                            glBindFramebuffer(GL_FRAMEBUFFER, 0);
                         }
 
                         float aspect = (float)width/height;
