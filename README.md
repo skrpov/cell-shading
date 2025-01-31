@@ -11,7 +11,7 @@ cartoonish through limiting the color palette and thick outlines.
 ```sh
 git clone https://github.com/skrpov/cell-shading --recursive
 cd cell-shading
-cmake -S src -B build -G Ninja
+cmake -S . -B build -G Ninja
 cmake --build build
 ./build/cell-shading ./assets/DamagedHelmet.glb
 ```
