@@ -1,13 +1,13 @@
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 
-#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <cglm/cglm.h>
+#include <glad/glad.h>
 
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -16,19 +16,19 @@
 #include "stb_image.h"
 
 #define FILE_NAME __FILE_NAME__
-#define LOG_INFO(msg, ...) fprintf(stderr, "%s:%d:info: " msg "\n", FILE_NAME, __LINE__ ,##__VA_ARGS__)
-#define LOG_WARNING(msg, ...) fprintf(stderr, "%s:%d:warning: " msg "\n", FILE_NAME, __LINE__ ,##__VA_ARGS__)
-#define LOG_ERROR(msg, ...) fprintf(stderr, "%s:%d:error: " msg "\n", FILE_NAME, __LINE__ ,##__VA_ARGS__)
+#define LOG_INFO(msg, ...) fprintf(stderr, "%s:%d:info: " msg "\n", FILE_NAME, __LINE__, ##__VA_ARGS__)
+#define LOG_WARNING(msg, ...) fprintf(stderr, "%s:%d:warning: " msg "\n", FILE_NAME, __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(msg, ...) fprintf(stderr, "%s:%d:error: " msg "\n", FILE_NAME, __LINE__, ##__VA_ARGS__)
 
-#define GL_CHECK(call) \
-do { \
-    call; \
-    int err = glGetError(); \
-    if (err != GL_NO_ERROR) { \
-        LOG_ERROR("%s - %d", #call, err); \
-        __builtin_debugtrap(); \
-    } \
-} while (false)
+#define GL_CHECK(call)                                                                                                 \
+    do {                                                                                                               \
+        call;                                                                                                          \
+        int err = glGetError();                                                                                        \
+        if (err != GL_NO_ERROR) {                                                                                      \
+            LOG_ERROR("%s - %d", #call, err);                                                                          \
+            __builtin_debugtrap();                                                                                     \
+        }                                                                                                              \
+    } while (false)
 
 static uint32_t CompileProgram(const char *vertsource, const char *fragsource) {
     char infolog[1024];
@@ -61,6 +61,8 @@ static uint32_t CompileProgram(const char *vertsource, const char *fragsource) {
     glDeleteShader(vertshader);
     return program;
 }
+
+// clang-format off
 
 static const char *quadVertSource = 
 "#version 330 core\n"
@@ -179,9 +181,10 @@ static const char *fragsource =
 "   vec3 diffuseColor = sunColor*baseColor*diffuseFactor;\n"
 
 "   FragColor = pow(vec4(diffuseColor, 1.0f), vec4(1/2.2));\n"
-// "   FragColor = pow(vec4((baseColor/PI)*(sunColor*lambert), 1.0f), vec4(1/2.2));\n"
 "}\n"
 ;
+
+// clang-format on
 
 typedef struct {
     GLenum indexType;
@@ -201,7 +204,7 @@ static void CleanupMesh(Mesh *mesh) {
     mesh->indexCount = 0;
 }
 
-typedef struct { 
+typedef struct {
     uint32_t baseColorTex;
     vec4 baseColorFactor;
 
@@ -210,7 +213,7 @@ typedef struct {
 typedef struct {
     cgltf_data *data;
     Mesh meshes[256];
-    size_t meshCount; 
+    size_t meshCount;
 
     Material materials[256];
     size_t materialCount;
@@ -241,37 +244,23 @@ static uint32_t CreateWhiteTexture(void) {
 
 static uint32_t CreateTextureFromTextureView(const cgltf_texture_view *textureView) {
     const cgltf_texture *texture = textureView->texture;
-    // HACK: Some files will still gete the `has_pbr_metaillic_roughness` but then won't have an 
-    // albedo map, because they are using a flat color or whatever. So this should fallback to an all white texture.
-    // honestly this should probobly exist on the level of `Material` because I don't want to create a million white textures 
-    // for something which should just be a flat color.
-    // 
-    // enum MaterialFlags {
-    //   MATERIAL_FLAGS_ALBEDO_MAP_BIT  = 0x1,
-    //   MATERIAL_FLAGS_NORMAL_MAP_BIT  = 0x2,
-    //   MATERIAL_FLAGS_TRANSPARENT_BIT = 0x4,
-    // };
-    //
-    // struct Material {
-    //   uint32_t typeMask;
-    //   ...
-    // }
     assert(texture);
 
     const cgltf_image *image = texture->image;
     const cgltf_sampler *sampler = texture->sampler;
 
     // HACK: Only handling texture data supplied in a .glb, and not loading externally.
-    // To fix this the function can either directly do IO and try to handle all of the associated errors, 
-    // or IO can be done in bulk by another system, and then .. I basically get the same case where I need to check if the 
-    // file exists then provide a good error message if it doesn't and provide a fallback.
+    // To fix this the function can either directly do IO and try to handle all of the associated
+    // errors, or IO can be done in bulk by another system, and then .. I basically get the same
+    // case where I need to check if the file exists then provide a good error message if it doesn't
+    // and provide a fallback.
     assert(image->buffer_view);
 
     const cgltf_buffer_view *bufferView = image->buffer_view;
     const cgltf_buffer *buffer = bufferView->buffer;
     const uint8_t *data = (const uint8_t *)buffer->data + bufferView->offset;
 
-    int width, height;  
+    int width, height;
     uint8_t *imageData = stbi_load_from_memory(data, bufferView->size, &width, &height, NULL, 4);
     assert(imageData);
 
@@ -284,12 +273,6 @@ static uint32_t CreateTextureFromTextureView(const cgltf_texture_view *textureVi
     GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
     GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
     GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-
-    // TODO: I don't really want mipmaps right now
-    // if (sampler->wrap_s) GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, sampler->wrap_s););
-    // if (sampler->wrap_t) GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, sampler->wrap_t));
-    // if (sampler->min_filter) GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, sampler->min_filter));
-    // if (sampler->mag_filter) GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, sampler->mag_filter));
 
     return tex;
 }
@@ -307,7 +290,7 @@ static Material CreatePinkCheckerMaterial(void) {
     GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
     GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
 
-    return (Material) {
+    return (Material){
         .baseColorTex = tex,
         .baseColorFactor = {1.0f, 1.0f, 1.0f, 1.0f},
     };
@@ -320,75 +303,68 @@ static bool LoadGltfModel(GltfModel *model, const char *path) {
 
     if ((result = cgltf_parse_file(&opts, path, &data)) == cgltf_result_success) {
         if ((result = cgltf_load_buffers(&opts, data, path)) == cgltf_result_success) {
-            for (const cgltf_material *mat = data->materials;
-                    mat != data->materials + data->materials_count;
-                    ++mat) {
+            for (const cgltf_material *mat = data->materials; mat != data->materials + data->materials_count; ++mat) {
                 if (mat->has_pbr_metallic_roughness) {
-                    model->materials[model->materialCount++] = (Material) {
+                    model->materials[model->materialCount++] = (Material){
                         .baseColorTex = CreateTextureFromTextureView(&mat->pbr_metallic_roughness.base_color_texture),
-                        .baseColorFactor = {
-                            mat->pbr_metallic_roughness.base_color_factor[0],
-                            mat->pbr_metallic_roughness.base_color_factor[1],
-                            mat->pbr_metallic_roughness.base_color_factor[2],
-                            mat->pbr_metallic_roughness.base_color_factor[3],
-                        },
+                        .baseColorFactor =
+                            {
+                                mat->pbr_metallic_roughness.base_color_factor[0],
+                                mat->pbr_metallic_roughness.base_color_factor[1],
+                                mat->pbr_metallic_roughness.base_color_factor[2],
+                                mat->pbr_metallic_roughness.base_color_factor[3],
+                            },
                     };
                 } else {
                     model->materials[model->materialCount++] = CreatePinkCheckerMaterial();
                 }
             }
 
-            for (const cgltf_mesh *mesh = data->meshes; 
-                    mesh != data->meshes + data->meshes_count;
-                    ++mesh) {
+            for (const cgltf_mesh *mesh = data->meshes; mesh != data->meshes + data->meshes_count; ++mesh) {
 
-                // Primitives are super weird as always because nodes can references meshes, 
-                // so I need some mapping from cgltf_mesh -> cgltf_primitive, and I can't just convert them all to my own thing...
-                // I guess I could just traverse in the same order and store a giant list of primitives, then I can traverse meshes on draw and get the 
-                // same order while also not having this concept exist in my own code..
-
-                for (const cgltf_primitive *prim = mesh->primitives;
-                        prim != mesh->primitives + mesh->primitives_count;
-                        ++prim) {
+                for (const cgltf_primitive *prim = mesh->primitives; prim != mesh->primitives + mesh->primitives_count;
+                     ++prim) {
                     Mesh m = {0};
                     glGenVertexArrays(1, &m.vertexArray);
                     glBindVertexArray(m.vertexArray);
 
                     for (const cgltf_attribute *attrib = prim->attributes;
-                            attrib != prim->attributes + prim->attributes_count;
-                            ++attrib) {
+                         attrib != prim->attributes + prim->attributes_count; ++attrib) {
                         const cgltf_accessor *accessor = attrib->data;
-                        const cgltf_buffer_view *bufferView  = accessor->buffer_view;
+                        const cgltf_buffer_view *bufferView = accessor->buffer_view;
                         const cgltf_buffer *buffer = bufferView->buffer;
                         const uint8_t *data = (const uint8_t *)buffer->data + bufferView->offset + accessor->offset;
 
-                        // TODO: The way the buffers are just being loaded doesn't work anymore if something needs to be 
-                        // generated, like normals for example.
+                        // HACK: The way the buffers are just being loaded doesn't work anymore if
+                        // something needs to be generated, like normals for example.
 
                         switch (attrib->type) {
                         case cgltf_attribute_type_position: {
                             assert(m.positionBuffer == 0);
                             GL_CHECK(glGenBuffers(1, &m.positionBuffer));
                             GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m.positionBuffer));
-                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float)*3*accessor->count, data, GL_STATIC_DRAW));
+                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * accessor->count, data,
+                                                  GL_STATIC_DRAW));
 
                             GL_CHECK(glEnableVertexAttribArray(0));
                             GL_CHECK(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0));
                         } break;
                         case cgltf_attribute_type_normal: {
-                            assert(m.normalBuffer== 0);
+                            assert(m.normalBuffer == 0);
                             GL_CHECK(glGenBuffers(1, &m.normalBuffer));
                             GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m.normalBuffer));
-                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float)*3*accessor->count, data, GL_STATIC_DRAW));
+                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 3 * accessor->count, data,
+                                                  GL_STATIC_DRAW));
 
                             GL_CHECK(glEnableVertexAttribArray(1));
                             GL_CHECK(glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (const void *)0));
                         } break;
                         case cgltf_attribute_type_texcoord: {
-                            assert(m.texcoordBuffer== 0);
+                            assert(m.texcoordBuffer == 0);
                             GL_CHECK(glGenBuffers(1, &m.texcoordBuffer));
                             GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, m.texcoordBuffer));
-                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float)*2*accessor->count, data, GL_STATIC_DRAW));
+                            GL_CHECK(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 2 * accessor->count, data,
+                                                  GL_STATIC_DRAW));
 
                             GL_CHECK(glEnableVertexAttribArray(2));
                             GL_CHECK(glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (const void *)0));
@@ -401,13 +377,14 @@ static bool LoadGltfModel(GltfModel *model, const char *path) {
 
                     if (prim->indices) {
                         const cgltf_accessor *accessor = prim->indices;
-                        const cgltf_buffer_view *bufferView  = accessor->buffer_view;
+                        const cgltf_buffer_view *bufferView = accessor->buffer_view;
                         const cgltf_buffer *buffer = bufferView->buffer;
                         uint8_t *data = (uint8_t *)buffer->data + bufferView->offset + accessor->offset;
 
                         GL_CHECK(glGenBuffers(1, &m.indexBuffer));
                         GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m.indexBuffer));
-                        GL_CHECK(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t)*accessor->count, data, GL_STATIC_DRAW));
+                        GL_CHECK(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * accessor->count, data,
+                                              GL_STATIC_DRAW));
                         m.indexCount = accessor->count;
 
                         if (accessor->component_type == cgltf_component_type_r_32u) {
@@ -421,14 +398,14 @@ static bool LoadGltfModel(GltfModel *model, const char *path) {
                         LOG_WARNING("mesh %zu is missing indices", model->meshCount);
                     }
 
-                    assert(model->meshCount < (sizeof(model->meshes)/sizeof(model->meshes[0])));
+                    assert(model->meshCount < (sizeof(model->meshes) / sizeof(model->meshes[0])));
                     model->meshes[model->meshCount++] = m;
                 }
             }
 
             model->data = data;
             return true;
-            
+
         } else {
             LOG_ERROR("Couldn't load buffers for gltf file \"%s\"", path);
         }
@@ -441,7 +418,8 @@ static bool LoadGltfModel(GltfModel *model, const char *path) {
     return false;
 }
 
-static void RenderGltfNode(GltfModel *model, mat4 parentMatrix, uint32_t shader, size_t *firstPrim, const cgltf_node *node) {
+static void RenderGltfNode(GltfModel *model, mat4 parentMatrix, uint32_t shader, size_t *firstPrim,
+                           const cgltf_node *node) {
     mat4 localMatrix = GLM_MAT4_IDENTITY_INIT;
 
     mat4 nodeMatrix;
@@ -478,9 +456,7 @@ static void RenderGltfNode(GltfModel *model, mat4 parentMatrix, uint32_t shader,
 static void RenderGltfModel(GltfModel *model, mat4 parentMatrix, uint32_t shader) {
     const cgltf_data *data = model->data;
     size_t firstPrim = 0;
-    for (const cgltf_node *node = data->nodes;
-            node != data->nodes + data->nodes_count;
-            ++node) {
+    for (const cgltf_node *node = data->nodes; node != data->nodes + data->nodes_count; ++node) {
         if (node->parent == NULL) {
             RenderGltfNode(model, parentMatrix, shader, &firstPrim, node);
         }
@@ -495,7 +471,7 @@ typedef struct {
 } Camera;
 
 static Camera MakeDefaultCamera(void) {
-    return (Camera) {
+    return (Camera){
         .position = {0, 0, 4},
         .up = {0, 1, 0},
         .yaw = (float)-M_PI_2,
@@ -537,14 +513,11 @@ bool Run(const char *path) {
                     uint32_t defaultShader = CompileProgram(vertsource, fragsource);
                     Camera camera = MakeDefaultCamera();
 
-                    // Refresh the width, height to reflect the framebuffer rather than the window.
                     glfwGetFramebufferSize(window, &width, &height);
 
                     uint32_t fbo = 0;
                     uint32_t renderTex = 0;
                     uint32_t depthAttachment = 0;
-
-                    
 
                     bool shouldResize = true;
                     double lastTime = glfwGetTime();
@@ -582,28 +555,32 @@ bool Run(const char *path) {
 
                             GL_CHECK(glGenTextures(1, &renderTex));
                             GL_CHECK(glBindTexture(GL_TEXTURE_2D, renderTex));
-                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL));
+                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE,
+                                                  NULL));
                             GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR););
                             GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
                             GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
 
                             GL_CHECK(glGenTextures(1, &depthAttachment));
                             GL_CHECK(glBindTexture(GL_TEXTURE_2D, depthAttachment));
-                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
+                            GL_CHECK(glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0,
+                                                  GL_DEPTH_COMPONENT, GL_FLOAT, NULL));
                             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
                             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+                            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
                             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
                             GL_CHECK(glBindTexture(GL_TEXTURE_2D, 0));
 
-                                                GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderTex, 0); );
-                            GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthAttachment, 0););
+                            GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                                            renderTex, 0););
+                            GL_CHECK(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                                                            depthAttachment, 0););
 
                             assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
                             glBindFramebuffer(GL_FRAMEBUFFER, 0);
                         }
 
-                        float aspect = (float)width/height;
+                        float aspect = (float)width / height;
 
                         vec3 cameraDir;
                         GetCameraDirection(camera, cameraDir);
@@ -617,7 +594,7 @@ bool Run(const char *path) {
 
                         mat4 M = GLM_MAT4_IDENTITY_INIT;
                         static float rotation = 0.0f;
-                        rotation += dt*M_PI_2/3.0f;
+                        rotation += dt * M_PI_2 / 3.0f;
                         glm_rotate(M, rotation, camera.up);
 
                         {
@@ -627,7 +604,8 @@ bool Run(const char *path) {
                             GL_CHECK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
 
                             GL_CHECK(glUseProgram(defaultShader));
-                            GL_CHECK(glUniformMatrix4fv(glGetUniformLocation(defaultShader, "worldToClip"), 1, GL_FALSE, &worldToClip[0][0]));
+                            GL_CHECK(glUniformMatrix4fv(glGetUniformLocation(defaultShader, "worldToClip"), 1, GL_FALSE,
+                                                        &worldToClip[0][0]));
 
                             RenderGltfModel(&model, M, defaultShader);
                         }
@@ -648,18 +626,12 @@ bool Run(const char *path) {
                             GL_CHECK(glBindTexture(GL_TEXTURE_2D, depthAttachment));
 
                             GL_CHECK(glDrawArrays(GL_TRIANGLES, 0, 6));
-
-                            // GL_CHECK(glEnable(GL_FRAMEBUFFER_SRGB));
-                            // GL_CHECK(glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo));
-                            // GL_CHECK(glReadBuffer(GL_COLOR_ATTACHMENT0));
-                            // GL_CHECK(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
-                            // GL_CHECK(glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST));
                         }
 
                         glfwSwapBuffers(window);
                     }
 
-                    // glDeleteRenderbuffers(1, &rbo);
+                    glDeleteTextures(1, &depthAttachment);
                     glDeleteTextures(1, &renderTex);
                     glDeleteFramebuffers(1, &fbo);
 
