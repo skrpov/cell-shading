@@ -514,7 +514,7 @@ void GlfwErrorCallback(int code, const char *msg) {
     LOG_ERROR("%s", msg);
 }
 
-bool Run(void) {
+bool Run(const char *path) {
     bool success = true;
 
     glfwSetErrorCallback(GlfwErrorCallback);
@@ -531,7 +531,6 @@ bool Run(void) {
             glfwMakeContextCurrent(window);
             if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 
-                const char *path = "./DamagedHelmet.glb";
                 GltfModel model = {0};
                 if (LoadGltfModel(&model, path)) {
                     uint32_t fullscreenQuadTextureShader = CompileProgram(quadVertSource, sobelFragSource);
@@ -692,6 +691,11 @@ bool Run(void) {
     return success;
 }
 
-int main(void) {
-    return Run() ? EXIT_SUCCESS : EXIT_FAILURE;
+int main(int argc, const char *argv[]) {
+    if (argc < 2) {
+        printf("Usage: cell-shading <path-to-gltf>\n");
+        return EXIT_SUCCESS;
+    }
+    const char *path = argv[1];
+    return Run(path) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
